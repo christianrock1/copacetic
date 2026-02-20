@@ -1,0 +1,116 @@
+import Layout from "./components/layouts/Layout"
+import Welcome from "./components/layouts/Welcome"
+import Dashboard from "./components/layouts/Dashboard"
+import Challenge from "./components/layouts/Challenge"
+import { useState } from "react"
+import { useEffect } from "react"
+import WORDS from './utils/VOCAB.json'
+import { countdownIn24Hours, getWordByIndex, PLAN } from "./utils"
+
+function App() {
+  const [selectedPage, setSelectedPage] = useState(0) // 0 = welcome, 1 = dashboard, 2 = challenge
+
+  // const selectedPage = 2 // 0 = welcome, 1 = dashboard, 2 = challenge
+
+  const [name, setName] = useState('')
+  const [day, setDay] = useState(1)
+  const [datetime, setDatetime] = useState(null)
+  const [history, setHistory] = useState({})
+  const [attempts, setAttempts] = useState(0)
+
+  const daysWords = PLAN[day].map((idx) => {
+    return getWordByIndex(WORDS, parseInt(idx)).word
+  })
+
+  console.log(daysWords)
+
+  function handleChangePage(pageIndex) {
+    setSelectedPage(pageIndex)
+  }
+
+  function handleCreateAccount() {
+    if (!name) { return }
+    localStorage.setItem('username', name)
+    handleChangePage(1)
+  }
+
+  function handleCompleteDay() {
+    const newDay = day + 1
+    const newDateTime = Date.now()
+    setDay(newDay)
+    setDatetime(newDateTime)
+    localStorage.setItem('day', JSON.stringify({
+      day: newDay,
+      datetime: newDateTime
+    }))
+    setSelectedPage(1)
+  }
+
+  function handleIncrementAttempts() {
+    // take the current attempt number, and add one and save it to the local storage
+    const newRecord = attempts + 1
+    setAttempts(newRecord)
+    localStorage.setItem('attempts', newRecord)
+  }
+
+  useEffect(() => {
+    // this callback function is triggered on page load
+    if (!localStorage) { return } // if we don't yet have access to the database, then exit the callback function
+
+    if (localStorage.getItem('username')) {
+      // if we find the item (so get item returs something), then we enter the if block
+      setName(localStorage.getItem('username'))
+      // we have a name so we can skip to the dashboard
+      setSelectedPage(1)
+
+
+    }
+
+    if (localStorage.getItem('attempts')) {
+      // then we found attempts
+      setAttempts(parseInt(localStorage.getItem('attempts')))
+    }
+
+    if (localStorage.getItem('history')) {
+      setHistory(JSON.parse(localStorage.getItem('history')))
+    }
+
+    if (localStorage.getItem('day')) {
+      const { day: d, datetime: dt } = JSON.parse(localStorage.getItem('day'))
+      setDay(d)
+      setDatetime(dt)
+
+      if (d > 1 && dt) {
+        const diff = countdownIn24Hours(dt) 
+        if (diff < 0) {
+          console.log('Failed challenge')
+          let newHistory = { ...history }
+          const timestamp = new Date(dt)
+          const formattedTimestamp = timestamp.toString().split(' ').slice(1, 4).join(' ')
+          newHistory[formattedTimestamp] = d
+          setHistory(newHistory)
+          setDay(1)
+          setDatetime(null)
+          setAttempts(0)
+          localStorage.setItem('history', JSON.stringify(newHistory))
+          localStorage.setItem('day', JSON.stringify({ day: 1, datetime: null }))
+          localStorage.setItem('attempts', 0)
+        }
+      }
+    }
+  }, [])
+
+  const pages = {
+    0: <Welcome handleCreateAccount={handleCreateAccount} username="welcome" name={name} setName={setName} />,
+    1: <Dashboard history={history} name={name} day={day} attempts={attempts} PLAN={PLAN} daysWords={daysWords} handleChangePage={handleChangePage} datetime={datetime} />,
+    2: <Challenge day={day} daysWords={daysWords} handleChangePage={handleChangePage} handleIncrementAttempts={handleIncrementAttempts} handleCompleteDay={handleCompleteDay} PLAN={PLAN} />
+  }
+
+  return (
+    <Layout>
+      {pages[selectedPage]}
+    </Layout>
+  )
+}
+
+export default App
